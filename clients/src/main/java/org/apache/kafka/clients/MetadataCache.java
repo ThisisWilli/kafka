@@ -133,6 +133,7 @@ public class MetadataCache {
      * metadata is presumed to be more recent than the cache's metadata, and therefore all overlapping metadata will
      * be overridden.
      *
+     *
      * @param newClusterId the new cluster Id
      * @param newNodes the new set of nodes
      * @param addPartitions partitions to add

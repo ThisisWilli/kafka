@@ -76,6 +76,7 @@ public class DefaultPartitioner implements Partitioner {
     /**
      * If a batch completed for the current sticky partition, change the sticky partition. 
      * Alternately, if no sticky partition has been determined, set one.
+     * 一个ProducerBatch创建完成，则返回一个新的partition攒batch
      */
     public void onNewBatch(String topic, Cluster cluster, int prevPartition) {
         stickyPartitionCache.nextPartition(topic, cluster, prevPartition);

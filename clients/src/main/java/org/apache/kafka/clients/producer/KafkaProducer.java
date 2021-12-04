@@ -425,6 +425,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                         logContext,
                         clusterResourceListeners,
                         Time.SYSTEM);
+                // 获取broker ip，port，在bootstrap方法中初始化一个MetaDataCache
                 this.metadata.bootstrap(addresses);
             }
             this.errors = this.metrics.sensor("errors");
@@ -916,6 +917,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
      * Implementation of asynchronously send a record to a topic.
      */
     private Future<RecordMetadata> doSend(ProducerRecord<K, V> record, Callback callback) {
+        // TopicPartition中封装了topic的名称以及partition的编号名称
         TopicPartition tp = null;
         try {
             throwIfProducerClosed();
@@ -923,6 +925,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             long nowMs = time.milliseconds();
             ClusterAndWaitTime clusterAndWaitTime;
             try {
+                // 这个topic，partition所包含的的cluster的metaData，可以一直等
                 clusterAndWaitTime = waitOnMetadata(record.topic(), record.partition(), nowMs, maxBlockTimeMs);
             } catch (KafkaException e) {
                 if (metadata.isClosed())
@@ -948,6 +951,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                         " to class " + producerConfig.getClass(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG).getName() +
                         " specified in value.serializer", cce);
             }
+            // 开始选择partition
             int partition = partition(record, serializedKey, serializedValue, cluster);
             tp = new TopicPartition(record.topic(), partition);
 
@@ -970,6 +974,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             RecordAccumulator.RecordAppendResult result = accumulator.append(tp, timestamp, serializedKey,
                     serializedValue, headers, interceptCallback, remainingWaitMs, true, nowMs);
 
+            // 判断上次攒Batch是否攒完，如果完了换个新的partition发
             if (result.abortForNewBatch) {
                 int prevPartition = partition;
                 partitioner.onNewBatch(record.topic(), cluster, prevPartition);
@@ -1040,7 +1045,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
 
         if (cluster.invalidTopics().contains(topic))
             throw new InvalidTopicException(topic);
-
+        // 若metaData中已经有这个topic的metadata，那么加了
         metadata.add(topic, nowMs);
 
         Integer partitionsCount = cluster.partitionCountForTopic(topic);
@@ -1062,8 +1067,10 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             }
             metadata.add(topic, nowMs + elapsed);
             int version = metadata.requestUpdateForTopic(topic);
+            // 唤醒sender线程
             sender.wakeup();
             try {
+                // 每次收到Response就更新一次
                 metadata.awaitUpdate(version, remainingWaitMs);
             } catch (TimeoutException ex) {
                 // Rethrow with original maxWaitMs to prevent logging exception with remainingWaitMs
@@ -1325,6 +1332,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     }
 
     private static class ClusterAndWaitTime {
+        // cluster中封装了节点的host、ip、port等基础信息
         final Cluster cluster;
         final long waitedOnMetadataMs;
         ClusterAndWaitTime(Cluster cluster, long waitedOnMetadataMs) {

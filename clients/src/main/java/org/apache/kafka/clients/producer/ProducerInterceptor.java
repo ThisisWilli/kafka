@@ -33,13 +33,17 @@ import org.apache.kafka.common.Configurable;
  * ProducerInterceptor callbacks may be called from multiple threads. Interceptor implementation must ensure thread-safety, if needed.
  * <p>
  * Implement {@link org.apache.kafka.common.ClusterResourceListener} to receive cluster metadata once it's available. Please see the class documentation for ClusterResourceListener for more information.
+ *
+ *
  */
 public interface ProducerInterceptor<K, V> extends Configurable {
     /**
      * This is called from {@link org.apache.kafka.clients.producer.KafkaProducer#send(ProducerRecord)} and
      * {@link org.apache.kafka.clients.producer.KafkaProducer#send(ProducerRecord, Callback)} methods, before key and value
      * get serialized and partition is assigned (if partition is not specified in ProducerRecord).
-     * <p> 通过更改ProducerRecord中key和value的值实现特定策略的分区分配
+     *
+     * <p> 通过更改ProducerRecord中key和value的值实现特定策略的分区分配，并且可以对record进行拦截
+     *
      * This method is allowed to modify the record, in which case, the new record will be returned. The implication of modifying
      * key/value is that partition assignment (if not specified in ProducerRecord) will be done based on modified key/value,
      * not key/value from the client. Consequently, key and value transformation done in onSend() needs to be consistent:

@@ -70,12 +70,15 @@ public class DefaultRecord implements Record {
     private static final int NULL_VARINT_SIZE_BYTES = ByteUtils.sizeOfVarint(-1);
 
     private final int sizeInBytes;
+    // v2版本之后废弃
     private final byte attributes;
     private final long offset;
+    // v1版本后引入timestamp字段，为了更准确的根据ttl保留日志，并且更准确的从segment中切分日志，避免产生大文件
     private final long timestamp;
     private final int sequence;
     private final ByteBuffer key;
     private final ByteBuffer value;
+    // v2版本后添加了header
     private final Header[] headers;
 
     DefaultRecord(int sizeInBytes,

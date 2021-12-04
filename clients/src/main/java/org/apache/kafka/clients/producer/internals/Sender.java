@@ -293,7 +293,7 @@ public class Sender implements Runnable {
 
     /**
      * Run a single iteration of sending
-     *
+     * runOnce() -> sendProducerData()
      */
     void runOnce() {
         if (transactionManager != null) {
@@ -325,6 +325,7 @@ public class Sender implements Runnable {
 
         long currentTimeMs = time.milliseconds();
         long pollTimeout = sendProducerData(currentTimeMs);
+        // 从selector中poll数据
         client.poll(pollTimeout, currentTimeMs);
     }
 

@@ -35,8 +35,15 @@ public class StickyPartitionCache {
         this.indexCache = new ConcurrentHashMap<>();
     }
 
+    /**
+     * DefaultPartitioner的分区策略
+     * @param topic
+     * @param cluster
+     * @return
+     */
     public int partition(String topic, Cluster cluster) {
         Integer part = indexCache.get(topic);
+        // part为空，说明这个topic对应的ProducerBatch已经被发掉了
         if (part == null) {
             return nextPartition(topic, cluster, -1);
         }
@@ -49,7 +56,9 @@ public class StickyPartitionCache {
         Integer newPart = oldPart;
         // Check that the current sticky partition for the topic is either not set or that the partition that 
         // triggered the new batch matches the sticky partition that needs to be changed.
+        // 满足oldPart == prevPartition时，ProducerBatch创建完成
         if (oldPart == null || oldPart == prevPartition) {
+            // 获取所有可用的partition
             List<PartitionInfo> availablePartitions = cluster.availablePartitionsForTopic(topic);
             if (availablePartitions.size() < 1) {
                 Integer random = Utils.toPositive(ThreadLocalRandom.current().nextInt());

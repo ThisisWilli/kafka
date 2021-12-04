@@ -98,6 +98,7 @@ public final class ProducerBatch {
     }
 
     /**
+     * 关键方法
      * Append the record to the current record set and return the relative offset within that record set
      *
      * @return The RecordSend corresponding to this record or null if there isn't sufficient room.
