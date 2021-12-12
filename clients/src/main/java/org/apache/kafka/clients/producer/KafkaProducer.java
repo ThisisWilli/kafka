@@ -1066,11 +1066,12 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                 log.trace("Requesting metadata update for topic {}.", topic);
             }
             metadata.add(topic, nowMs + elapsed);
+            // 更新一个needUpdate标记，这个值会影响之前maybuUpdate的metadataTimeout的计算，让metadataTimeout为0
             int version = metadata.requestUpdateForTopic(topic);
-            // 唤醒sender线程
+            // 唤醒nio select的阻塞唤醒sender线程，去拉取元数据
             sender.wakeup();
             try {
-                // 每次收到Response就更新一次
+                // 每次收到Response就更新一次，主要进行了版本比较，如果不是最新版本，则调用wait方法等待更新
                 metadata.awaitUpdate(version, remainingWaitMs);
             } catch (TimeoutException ex) {
                 // Rethrow with original maxWaitMs to prevent logging exception with remainingWaitMs
@@ -1090,6 +1091,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             metadata.maybeThrowExceptionForTopic(topic);
             remainingWaitMs = maxWaitMs - elapsed;
             partitionsCount = cluster.partitionCountForTopic(topic);
+            // partitionCount为空或者partiiton不为空并且partition编号大于partition总数
         } while (partitionsCount == null || (partition != null && partition >= partitionsCount));
 
         return new ClusterAndWaitTime(cluster, elapsed);

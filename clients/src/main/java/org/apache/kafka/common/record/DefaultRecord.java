@@ -163,6 +163,7 @@ public class DefaultRecord implements Record {
 
     /**
      * Write the record to `out` and return its size.
+     * 最终将ProducerRecord的header，key，value的字节流写入OutputStream
      */
     public static int writeTo(DataOutputStream out,
                               int offsetDelta,

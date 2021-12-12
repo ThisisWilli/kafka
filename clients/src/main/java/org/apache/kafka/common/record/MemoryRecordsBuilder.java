@@ -41,6 +41,9 @@ import static org.apache.kafka.common.utils.Utils.wrapNullable;
  * In cases where keeping memory retention low is important and there's a gap between the time that record appends stop
  * and the builder is closed (e.g. the Producer), it's important to call `closeForRecordAppends` when the former happens.
  * This will release resources like compression buffers that can be relatively large (64 KB for LZ4).
+ *
+ *
+ *  压缩流： appendStream -> bufferStream -> ByteBuffer(nio自带)
  */
 public class MemoryRecordsBuilder implements AutoCloseable {
     private static final float COMPRESSION_RATE_ESTIMATION_FACTOR = 1.05f;
@@ -115,6 +118,7 @@ public class MemoryRecordsBuilder implements AutoCloseable {
                 throw new IllegalArgumentException("Delete horizon timestamp is not supported for magic " + magic);
         }
 
+        // 用来标识kafka版本，默认0和1
         this.magic = magic;
         this.timestampType = timestampType;
         this.compressionType = compressionType;
@@ -430,6 +434,7 @@ public class MemoryRecordsBuilder implements AutoCloseable {
 
     /**
      * Append a new record at the given offset.
+     * 在给定的位移插入一条新的Record
      */
     private void appendWithOffset(long offset, boolean isControlRecord, long timestamp, ByteBuffer key,
                                   ByteBuffer value, Header[] headers) {
@@ -721,6 +726,7 @@ public class MemoryRecordsBuilder implements AutoCloseable {
 
     private long appendLegacyRecord(long offset, long timestamp, ByteBuffer key, ByteBuffer value, byte magic) throws IOException {
         ensureOpenForRecordAppend();
+        // 判断是否开启压缩
         if (compressionType == CompressionType.NONE && timestampType == TimestampType.LOG_APPEND_TIME)
             timestamp = logAppendTime;
 

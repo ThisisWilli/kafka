@@ -65,6 +65,7 @@ public final class ProducerBatch {
     final TopicPartition topicPartition;
     final ProduceRequestResult produceFuture;
 
+    // 应该是存储每个ProducerRecord对应的Callback函数
     private final List<Thunk> thunks = new ArrayList<>();
     private final MemoryRecordsBuilder recordsBuilder;
     private final AtomicInteger attempts = new AtomicInteger(0);
@@ -104,6 +105,7 @@ public final class ProducerBatch {
      * @return The RecordSend corresponding to this record or null if there isn't sufficient room.
      */
     public FutureRecordMetadata tryAppend(long timestamp, byte[] key, byte[] value, Header[] headers, Callback callback, long now) {
+        //
         if (!recordsBuilder.hasRoomFor(timestamp, key, value, headers)) {
             return null;
         } else {
@@ -118,6 +120,7 @@ public final class ProducerBatch {
                                                                    Time.SYSTEM);
             // we have to keep every future returned to the users in case the batch needs to be
             // split to several new batches and resent.
+            // 向ProducerBatch中插入数据完成，将结果先存储thunks中
             thunks.add(new Thunk(callback, future));
             this.recordCount++;
             return future;
@@ -264,6 +267,7 @@ public final class ProducerBatch {
         // execute callbacks
         for (int i = 0; i < thunks.size(); i++) {
             try {
+                // 执行回调方法
                 Thunk thunk = thunks.get(i);
                 if (thunk.callback != null) {
                     if (recordExceptions == null) {
