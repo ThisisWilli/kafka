@@ -362,6 +362,7 @@ public class Sender implements Runnable {
         // create produce requests
         Map<Integer, List<ProducerBatch>> batches = this.accumulator.drain(cluster, result.readyNodes, this.maxRequestSize, now);
         addToInflightBatches(batches);
+        // 为了保证顺序写入，mute掉这个tp，让这个tp暂时不能被写入数据
         if (guaranteeMessageOrder) {
             // Mute all the partitions drained
             for (List<ProducerBatch> batchList : batches.values()) {
@@ -848,6 +849,7 @@ public class Sender implements Runnable {
 
     /**
      * Wake up the selector associated with this send thread
+     * 唤醒Sender线程需要满足5个条件
      */
     public void wakeup() {
         this.client.wakeup();

@@ -221,6 +221,7 @@ public class KafkaChannel implements AutoCloseable {
         if (socketChannel != null) {
             remoteAddress = socketChannel.getRemoteAddress();
         }
+        // 调用nio的socketChannelImpl建立连接
         boolean connected = transportLayer.finishConnect();
         if (connected) {
             if (ready()) {

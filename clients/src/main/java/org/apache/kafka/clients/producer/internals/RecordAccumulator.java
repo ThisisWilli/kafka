@@ -205,6 +205,7 @@ public final class RecordAccumulator {
                  *  a. 若当前deque中最后一个ProducerBatch没有满，则添加到该ProduceBatch中
                  *  b. 当前ProducerBatch满了，则创建一个新的ProducerBatch
                  */
+                // deque.peekLast()为null时，appendResult为null
                 RecordAppendResult appendResult = tryAppend(timestamp, key, value, headers, callback, dq, nowMs);
                 if (appendResult != null)
                     return appendResult;
@@ -281,7 +282,8 @@ public final class RecordAccumulator {
             if (future == null)
                 last.closeForRecordAppends();
             else
-                return new RecordAppendResult(future, deque.size() > 1 || last.isFull(), false, false);
+                return new RecordAppendResult(future, deque.size() > 1 || last.isFull()
+                        , false, false);
         }
         return null;
     }
@@ -458,6 +460,7 @@ public final class RecordAccumulator {
         long nextReadyCheckDelayMs = Long.MAX_VALUE;
         Set<String> unknownLeaderTopics = new HashSet<>();
 
+        // 判断是否存在正在等待分配内存的线程
         boolean exhausted = this.free.queued() > 0;
         for (Map.Entry<TopicPartition, Deque<ProducerBatch>> entry : this.batches.entrySet()) {
             Deque<ProducerBatch> deque = entry.getValue();
@@ -476,7 +479,9 @@ public final class RecordAccumulator {
                         long waitedTimeMs = batch.waitedTimeMs(nowMs);
                         boolean backingOff = batch.attempts() > 0 && waitedTimeMs < retryBackoffMs;
                         long timeToWaitMs = backingOff ? retryBackoffMs : lingerMs;
+                        // deque中是否包含多个ProducerBatch或者当前producerBatch是否已经满了
                         boolean full = deque.size() > 1 || batch.isFull();
+                        // 是否超时了
                         boolean expired = waitedTimeMs >= timeToWaitMs;
                         boolean transactionCompleting = transactionManager != null && transactionManager.isCompleting();
                         boolean sendable = full
@@ -574,16 +579,18 @@ public final class RecordAccumulator {
 
             synchronized (deque) {
                 // invariant: !isMuted(tp,now) && deque != null
+                // 取出deque中的第一个ProducerBatch
                 ProducerBatch first = deque.peekFirst();
                 if (first == null)
                     continue;
 
                 // first != null
+                // 是否是等待中的ProducerBatch
                 boolean backoff = first.attempts() > 0 && first.waitedTimeMs(now) < retryBackoffMs;
                 // Only drain the batch if it is not during backoff period.
                 if (backoff)
                     continue;
-
+                // 当前ProducerBatch是否大于最大请求大小，大了还是要发的
                 if (size + first.estimatedSizeInBytes() > maxSize && !ready.isEmpty()) {
                     // there is a rare case that a single batch size is larger than the request size due to
                     // compression; in this case we will still eventually send this batch in a single request
@@ -592,6 +599,7 @@ public final class RecordAccumulator {
                     if (shouldStopDrainBatchesForPartition(first, tp))
                         break;
 
+                    // 是否开启事务
                     boolean isTransactional = transactionManager != null && transactionManager.isTransactional();
                     ProducerIdAndEpoch producerIdAndEpoch =
                         transactionManager != null ? transactionManager.producerIdAndEpoch() : null;
@@ -619,6 +627,7 @@ public final class RecordAccumulator {
 
                         transactionManager.addInFlightBatch(batch);
                     }
+                    // 关闭batch，不在写入数据
                     batch.close();
                     size += batch.records().sizeInBytes();
                     ready.add(batch);
@@ -627,6 +636,7 @@ public final class RecordAccumulator {
                 }
             }
         } while (start != drainIndex);
+        // 返回当前Node已经ready的ProducerBatch
         return ready;
     }
 

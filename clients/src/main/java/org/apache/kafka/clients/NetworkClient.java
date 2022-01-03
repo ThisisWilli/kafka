@@ -535,7 +535,10 @@ public class NetworkClient implements KafkaClient {
 
     /**
      * Do actual reads and writes to sockets.
-     * 拉取元数据
+     * 有以下需求时调用poll
+     * 1. 需要更新metadata
+     * 2. Selector中有channel ready？
+     * 3. 处理Response
      * @param timeout The maximum amount of time to wait (in ms) for responses if there are none immediately,
      *                must be non-negative. The actual timeout will be the minimum of timeout, request timeout and
      *                metadata timeout
@@ -557,6 +560,7 @@ public class NetworkClient implements KafkaClient {
 
         long metadataTimeout = metadataUpdater.maybeUpdate(now);
         try {
+            // select处理各种已经ready的事件
             this.selector.poll(Utils.min(timeout, metadataTimeout, defaultRequestTimeoutMs));
         } catch (IOException e) {
             log.error("Unexpected error during I/O", e);
@@ -566,12 +570,14 @@ public class NetworkClient implements KafkaClient {
         long updatedNow = this.time.milliseconds();
         List<ClientResponse> responses = new ArrayList<>();
         handleCompletedSends(responses, updatedNow);
+        // 处理metadata更新相关的request
         handleCompletedReceives(responses, updatedNow);
         handleDisconnections(responses, updatedNow);
         handleConnections();
         handleInitiateApiVersionRequests(updatedNow);
         handleTimedOutConnections(responses, updatedNow);
         handleTimedOutRequests(responses, updatedNow);
+        // 执行回调函数
         completeResponses(responses);
 
         return responses;
@@ -834,11 +840,14 @@ public class NetworkClient implements KafkaClient {
     private void handleCompletedSends(List<ClientResponse> responses, long now) {
         // if no response is expected then when the send is completed, return it
         for (NetworkSend send : this.selector.completedSends()) {
+            // 拿到inFlightRequests队头的第一个inFightRequests，但是不移除
             InFlightRequest request = this.inFlightRequests.lastSent(send.destinationId());
+            // 如果请求不需要返回值，则直接认为发送成功
             if (!request.expectResponse) {
                 this.inFlightRequests.completeLastSent(send.destinationId());
                 responses.add(request.completed(null, now));
             }
+            // 如果客户端请求需要有响应, 那么它的响应是在下面的handleCompletedReceives中设置的.
         }
     }
 
@@ -867,10 +876,12 @@ public class NetworkClient implements KafkaClient {
      * @param now The current time
      */
     private void handleCompletedReceives(List<ClientResponse> responses, long now) {
+        // 遍历selector中未处理的response
         for (NetworkReceive receive : this.selector.completedReceives()) {
             String source = receive.source();
+            // 从inFlightRequests取出请求source的request，并将其从inFlightRequests删除
             InFlightRequest req = inFlightRequests.completeNext(source);
-
+            // 解析response
             AbstractResponse response = parseResponse(receive.payload(), req.header);
             if (throttleTimeSensor != null)
                 throttleTimeSensor.record(response.throttleTimeMs(), now);
@@ -885,8 +896,10 @@ public class NetworkClient implements KafkaClient {
             if (req.isInternalRequest && response instanceof MetadataResponse)
                 metadataUpdater.handleSuccessfulResponse(req.header, now, (MetadataResponse) response);
             else if (req.isInternalRequest && response instanceof ApiVersionsResponse)
+                //处理办理请求响应ApiVersionsResponse
                 handleApiVersionsResponse(responses, req, now, (ApiVersionsResponse) response);
             else
+                //其他响应：生成ClientResponse添加到列表中
                 responses.add(req.completed(response, now));
         }
     }
