@@ -832,10 +832,10 @@ public class NetworkClient implements KafkaClient {
     }
 
     /**
-     * Handle any completed request send. In particular if no response is expected consider the request complete.
-     *
+     * Handle any completed request send. In particular if no response is expected consider the request complete
      * @param responses The list of responses to update
      * @param now The current time
+     *
      */
     private void handleCompletedSends(List<ClientResponse> responses, long now) {
         // if no response is expected then when the send is completed, return it

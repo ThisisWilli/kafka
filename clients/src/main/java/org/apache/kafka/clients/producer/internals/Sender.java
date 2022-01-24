@@ -186,6 +186,7 @@ public class Sender implements Runnable {
                 Iterator<ProducerBatch> iter = partitionInFlightBatches.iterator();
                 while (iter.hasNext()) {
                     ProducerBatch batch = iter.next();
+                    // 当前时间减去batch的创建时间判断batch是否需要
                     if (batch.hasReachedDeliveryTimeout(accumulator.getDeliveryTimeoutMs(), now)) {
                         iter.remove();
                         // expireBatches is called in Sender.sendProducerData, before client.poll.
@@ -349,6 +350,7 @@ public class Sender implements Runnable {
         }
 
         // remove any nodes we aren't ready to send to
+        // 取出还没有准备好的node
         Iterator<Node> iter = result.readyNodes.iterator();
         long notReadyTimeout = Long.MAX_VALUE;
         while (iter.hasNext()) {
@@ -370,7 +372,7 @@ public class Sender implements Runnable {
                     this.accumulator.mutePartition(batch.topicPartition);
             }
         }
-
+        // 更新下一个ProducerBatch的超时时间，这个超时一般不会触发
         accumulator.resetNextBatchExpiryTime();
         List<ProducerBatch> expiredInflightBatches = getExpiredInflightBatches(now);
         List<ProducerBatch> expiredBatches = this.accumulator.expiredBatches(now);
@@ -654,6 +656,7 @@ public class Sender implements Runnable {
 
         // Unmute the completed partition.
         if (guaranteeMessageOrder)
+            // 这个partition的请求已经发送完成，可以将这个partition从mute中移除
             this.accumulator.unmutePartition(batch.topicPartition);
     }
 
@@ -787,6 +790,11 @@ public class Sender implements Runnable {
 
     /**
      * Create a produce request from the given record batches
+     * @param now
+     * @param destination
+     * @param acks 消息完整性等级
+     * @param timeout 初始化参数中的request.timeout
+     * @param batches 发往一个node的所有request
      */
     private void sendProduceRequest(long now, int destination, short acks, int timeout, List<ProducerBatch> batches) {
         if (batches.isEmpty())
@@ -840,7 +848,7 @@ public class Sender implements Runnable {
 
         String nodeId = Integer.toString(destination);
 
-        // 创建Client Request
+        // 创建Client Request，requestBuilder中包含具体batch数据
         ClientRequest clientRequest = client.newClientRequest(nodeId, requestBuilder, now, acks != 0,
                 requestTimeoutMs, callback);
         client.send(clientRequest, now);

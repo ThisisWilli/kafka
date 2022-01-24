@@ -72,7 +72,9 @@ public final class RecordAccumulator {
     private final int batchSize;
     private final CompressionType compression;
     private final int lingerMs;
+    // 发送失败后的时间间隔
     private final long retryBackoffMs;
+    // 由配置项指定，表示ProducerBatch在RecordAccumulator中的过期时间，默认120s
     private final int deliveryTimeoutMs;
     private final BufferPool free;
     private final Time time;
@@ -478,6 +480,7 @@ public final class RecordAccumulator {
                     } else if (!readyNodes.contains(leader) && !isMuted(part)) {
                         long waitedTimeMs = batch.waitedTimeMs(nowMs);
                         boolean backingOff = batch.attempts() > 0 && waitedTimeMs < retryBackoffMs;
+                        // 如果不是重试，则取linger.ms作为超时时间，如果该batch在重试，则将retryBachOffMs作为判断标准
                         long timeToWaitMs = backingOff ? retryBackoffMs : lingerMs;
                         // deque中是否包含多个ProducerBatch或者当前producerBatch是否已经满了
                         boolean full = deque.size() > 1 || batch.isFull();
@@ -563,6 +566,7 @@ public final class RecordAccumulator {
         List<PartitionInfo> parts = cluster.partitionsForNode(node.id());
         List<ProducerBatch> ready = new ArrayList<>();
         /* to make starvation less likely this loop doesn't start at 0 */
+        // 减少饥饿
         int start = drainIndex = drainIndex % parts.size();
         do {
             PartitionInfo part = parts.get(drainIndex);
@@ -570,6 +574,7 @@ public final class RecordAccumulator {
             this.drainIndex = (this.drainIndex + 1) % parts.size();
 
             // Only proceed if the partition has no in-flight batches.
+            // 如果这个tp有还没有收到响应的ProducerBatch
             if (isMuted(tp))
                 continue;
 
